@@ -41,6 +41,7 @@ import * as Complex from "./complex.ts"
 
 const SAMPLING_FREQUENCY = 44100
 const HRTF_SIZE = 512
+const INPUT_BUFFER_SIZE = HRTF_SIZE * 2
 const OUTPUT_BUFFER_SIZE = HRTF_SIZE * 8
 const RAD_TO_DEG = 180 / Math.PI
 
@@ -56,17 +57,21 @@ class HrtfProcessor extends AudioWorkletProcessor
 
     xParam: number
     yParam: number
+    zParam: number
 
 
     constructor()
     {
         super()
-        this.inputBuffer = new Float32Array(HRTF_SIZE)
-        this.inputHead = 0
+        this.inputBuffer = new Float32Array(INPUT_BUFFER_SIZE)
+        this.inputHead = HRTF_SIZE
         this.outputBufferL = new Float32Array(OUTPUT_BUFFER_SIZE)
         this.outputBufferR = new Float32Array(OUTPUT_BUFFER_SIZE)
         this.outputWrite = 0
         this.outputRead = 0
+        this.xParam = 0
+        this.yParam = 0
+        this.zParam = 0
     }
 
 
@@ -78,7 +83,11 @@ class HrtfProcessor extends AudioWorkletProcessor
         if (this.inputHead >= this.inputBuffer.length)
         {
             this.applyFilter()
-            this.inputHead = 0
+
+            for (let i = 0; i < HRTF_SIZE; i++)
+                this.inputBuffer[i] = this.inputBuffer[i + HRTF_SIZE]
+
+            this.inputHead = HRTF_SIZE
         }
     }
 
@@ -123,8 +132,8 @@ class HrtfProcessor extends AudioWorkletProcessor
     get3dParams(x: number, y: number, z: number)
     {
         const azimuth = Math.atan2(x, y)
-        const distance = this.distanceTo(0, 0, 0, x, y, 0)
-        const elevation = Math.atan(1 - z / distance)
+        const distance = this.distanceTo(0, 0, 0, x, y, z)
+        const elevation = Math.atan2(y, Math.sqrt(x * x + z * z) + 0.001)
 
         const headSize = 0.20
         const speedOfSound = 343
@@ -133,7 +142,8 @@ class HrtfProcessor extends AudioWorkletProcessor
 
         return {
             azimuth: azimuth * RAD_TO_DEG,
-            elevation: 0,
+            elevation: elevation * RAD_TO_DEG,
+            distance,
             timeToEarL,
             timeToEarR,
         }
@@ -165,7 +175,7 @@ class HrtfProcessor extends AudioWorkletProcessor
         const params = this.get3dParams(
             this.xParam,
             this.yParam,
-            0)
+            this.zParam)
 
         const delaySamplesL = Math.round(params.timeToEarL * SAMPLING_FREQUENCY)
         const delaySamplesR = Math.round(params.timeToEarR * SAMPLING_FREQUENCY)
@@ -205,10 +215,13 @@ class HrtfProcessor extends AudioWorkletProcessor
         //    value.imag = i < n / 16 ? value.imag : 0
         //})
 
-        for (let i = 0; i < filteredL.length; i++)
+        const gain = 4
+        const distanceAttenuation = Math.pow(10, -20 * Math.log10(Math.max(1, params.distance)) / 10)
+
+        for (let i = 0; i < HRTF_SIZE; i++)
             this.writeOutput(
-                filteredL.real[i], delaySamplesL,
-                filteredR.real[i], delaySamplesR)
+                filteredL.real[i] * gain * distanceAttenuation, delaySamplesL,
+                filteredR.real[i] * gain * distanceAttenuation, delaySamplesR)
     }
     
     
@@ -224,6 +237,13 @@ class HrtfProcessor extends AudioWorkletProcessor
             },
             {
                 name: "y",
+                defaultValue: 0,
+                minValue: -1000,
+                maxValue: 1000,
+                automationRate: "a-rate",
+            },
+            {
+                name: "z",
                 defaultValue: 0,
                 minValue: -1000,
                 maxValue: 1000,
@@ -254,6 +274,7 @@ class HrtfProcessor extends AudioWorkletProcessor
 
         this.xParam = parameters["x"][0]
         this.yParam = parameters["y"][0]
+        this.zParam = parameters["z"][0]
         
         return true
     }

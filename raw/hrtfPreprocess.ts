@@ -19,8 +19,20 @@ function preprocess()
             d.elevation === left.elevation &&
             d.azimuth === left.azimuth)!
 
-        const freqL = new Jsfft.ComplexArray(left.impulseResponse).FFT()
-        const freqR = new Jsfft.ComplexArray(right.impulseResponse).FFT()
+        const unkL = []
+        for (let i = 0; i < left.impulseResponse.length; i++)
+            unkL.push(0)
+        for (let i = 0; i < left.impulseResponse.length; i++)
+            unkL.push(left.impulseResponse[i])
+
+        const unkR = []
+        for (let i = 0; i < right.impulseResponse.length; i++)
+            unkR.push(0)
+        for (let i = 0; i < right.impulseResponse.length; i++)
+            unkR.push(right.impulseResponse[i])
+
+        const freqL = new Jsfft.ComplexArray(unkL).FFT()
+        const freqR = new Jsfft.ComplexArray(unkR).FFT()
 
         let finalFreqL = "["
         let finalFreqR = "["

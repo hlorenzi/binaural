@@ -41,12 +41,14 @@ export class AudioManager
     }
 
 
-    setParams(x: number, y: number)
+    setParams(x: number, y: number, z: number)
     {
         const xParam = this.nodeFilter.parameters.get("x")!
         const yParam = this.nodeFilter.parameters.get("y")!
+        const zParam = this.nodeFilter.parameters.get("z")!
 
         xParam.setValueAtTime(x, this.ctx.currentTime)
         yParam.setValueAtTime(y, this.ctx.currentTime)
+        zParam.setValueAtTime(z, this.ctx.currentTime)
     }
 }
